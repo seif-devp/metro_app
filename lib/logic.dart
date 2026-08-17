@@ -1,6 +1,21 @@
 import 'dart:collection';
 import 'station.dart';
 
+Map<String, List<Station>>? _cachedGraph;
+Map<String, List<String>>? _cachedStationLinesMap;
+
+Map<String, List<String>> getStationLinesMap(Map<String, List<Station>> lines) {
+  if (_cachedStationLinesMap != null) return _cachedStationLinesMap!;
+  final map = <String, List<String>>{};
+  for (var entry in lines.entries) {
+    for (var station in entry.value) {
+      map.putIfAbsent(station.name, () => []).add(entry.key);
+    }
+  }
+  _cachedStationLinesMap = map;
+  return map;
+}
+
 Map<String, dynamic> getDetails(
   List<String>? route,
   Map<String, List<Station>> metroLines,
@@ -28,19 +43,32 @@ Map<String, dynamic> getDetails(
   List<String> directions = [];
 
   String? currentLine;
-  String currentSegmentStart = route.first;
+  String? currentDirectionTerminal;
+
+  final stationLinesMap = getStationLinesMap(metroLines);
 
   // دالة مساعدة لمعرفة الخط المشترك بين محطتين متتاليتين
   List<String> getCommonLines(String s1, String s2) {
-    List<String> s1Lines = metroLines.entries
-        .where((e) => e.value.any((st) => st.name == s1))
-        .map((e) => e.key)
-        .toList();
-    List<String> s2Lines = metroLines.entries
-        .where((e) => e.value.any((st) => st.name == s2))
-        .map((e) => e.key)
-        .toList();
+    List<String> s1Lines = stationLinesMap[s1] ?? [];
+    List<String> s2Lines = stationLinesMap[s2] ?? [];
     return s1Lines.where((l) => s2Lines.contains(l)).toList();
+  }
+
+  String getDirectionTerminal(String line, String sStart, String sNext) {
+    List<Station> stations = metroLines[line] ?? [];
+    int idx1 = stations.indexWhere((s) => s.name == sStart);
+    int idx2 = stations.indexWhere((s) => s.name == sNext);
+    if (idx1 == -1 || idx2 == -1) return "Unknown";
+    
+    if (idx2 > idx1) {
+      // Forward direction
+      if (line == "Line 3 Main") return "Rod El Farag Corridor / Cairo University";
+      return stations.last.name;
+    } else {
+      // Backward direction
+      if (line == "Line 3 Branch 1" || line == "Line 3 Branch 2") return "Adly Mansour";
+      return stations.first.name;
+    }
   }
 
   // تتبع المسار لاكتشاف خطوط النقل والاتجاهات
@@ -50,20 +78,30 @@ Map<String, dynamic> getDetails(
     List<String> commonLines = getCommonLines(s1, s2);
 
     if (currentLine == null) {
-      currentLine = commonLines.first;
-      usedLines.add(currentLine);
+      if (commonLines.isNotEmpty) {
+        currentLine = commonLines.first;
+        usedLines.add(currentLine);
+        currentDirectionTerminal = getDirectionTerminal(currentLine, s1, s2);
+      }
     } else if (!commonLines.contains(currentLine)) {
       // تم اكتشاف تغيير في الخط (تبديل)
-      directions.add('$currentSegmentStart -> $s1');
+      if (currentDirectionTerminal != null) {
+        directions.add(currentDirectionTerminal);
+      }
       transferStations.add(s1);
 
-      currentLine = commonLines.first;
-      usedLines.add(currentLine);
-      currentSegmentStart = s1;
+      if (commonLines.isNotEmpty) {
+        currentLine = commonLines.first;
+        usedLines.add(currentLine);
+        currentDirectionTerminal = getDirectionTerminal(currentLine, s1, s2);
+      }
     }
   }
+  
   // إضافة اتجاه الجزء الأخير من الرحلة
-  directions.add('$currentSegmentStart -> ${route.last}');
+  if (currentDirectionTerminal != null) {
+    directions.add(currentDirectionTerminal);
+  }
 
   int count = route.length - 1;
 
@@ -109,6 +147,7 @@ String color(int count) {
 }
 
 Map<String, List<Station>> buildGraph(Map<String, List<Station>> lines) {
+  if (_cachedGraph != null) return _cachedGraph!;
   final graph = <String, List<Station>>{};
 
   for (var stations in lines.values) {
@@ -127,6 +166,7 @@ Map<String, List<Station>> buildGraph(Map<String, List<Station>> lines) {
     }
   }
 
+  _cachedGraph = graph;
   return graph;
 }
 

@@ -3,8 +3,8 @@ import 'package:get/get.dart';
 import 'package:metro_app/station.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'stations_data.dart';
-import 'details_page.dart';
 import 'location_fun.dart';
+import 'app_routes.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -13,7 +13,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   Station? fromStation;
   Station? toStation;
   Station? nearestStationFromCurrent;
@@ -21,6 +21,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   final showLocationField = false.obs;
   final answer1 = TextEditingController();
   final answer2 = TextEditingController();
+  final focusNode1 = FocusNode();
+  final focusNode2 = FocusNode();
   final answer3 = TextEditingController();
   final answer4 = TextEditingController();
   final locationController = TextEditingController();
@@ -28,11 +30,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   late Animation<double> _fadeAnimation;
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 400),
     );
     _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
@@ -51,13 +56,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     answer3.dispose();
     answer4.dispose();
     locationController.dispose();
+    focusNode1.dispose();
+    focusNode2.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFD),
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFD),
       appBar: _buildAppBar(),
       body: FadeTransition(
         opacity: _fadeAnimation,
@@ -68,15 +78,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             children: [
               _buildHeaderSection(),
               const SizedBox(height: 32),
-              _buildStationInputSection(),
+              _buildStationInputSection(isDark),
               const SizedBox(height: 24),
-              _buildPassengerDetailsSection(),
+              _buildPassengerDetailsSection(isDark),
               const SizedBox(height: 32),
               _buildMainActionButton(),
               const SizedBox(height: 32),
-              _buildLocationServicesSection(),
+              _buildLocationServicesSection(isDark),
               const SizedBox(height: 16),
-              Obx(() => _buildDestinationAddressSection()),
+              Obx(() => _buildDestinationAddressSection(isDark)),
             ],
           ),
         ),
@@ -86,11 +96,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      title: const Text(
-        'Metro Navigator',
-        style: TextStyle(
+      title: Text(
+        'plan_new_ride'.tr,
+        style: const TextStyle(
           fontWeight: FontWeight.w700,
-          fontSize: 24,
+          fontSize: 22,
           color: Colors.white,
           letterSpacing: 0.5,
         ),
@@ -133,9 +143,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             color: Colors.white,
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Plan Your Journey',
-            style: TextStyle(
+          Text(
+            'plan_your_journey'.tr,
+            style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w700,
               color: Colors.white,
@@ -143,7 +153,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           ),
           const SizedBox(height: 8),
           Text(
-            'Find the fastest route between stations',
+            'find_fastest_between'.tr,
             style: TextStyle(
               fontSize: 14,
               color: Colors.white.withOpacity(0.9),
@@ -154,12 +164,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  Widget _buildStationInputSection() {
+  Widget _buildStationInputSection(bool isDark) {
     return Column(
       children: [
         _buildAnimatedStationCard(
+          isDark: isDark,
           controller: answer1,
-          label: 'Departure Station',
+          focusNode: focusNode1,
+          label: 'departure_station'.tr,
           icon: Icons.location_pin,
           iconColor: const Color(0xFFEF4444),
           onMapPressed: () => _openStationOnMap(answer1, fromStation),
@@ -167,8 +179,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         ),
         const SizedBox(height: 16),
         _buildAnimatedStationCard(
+          isDark: isDark,
           controller: answer2,
-          label: 'Arrival Station',
+          focusNode: focusNode2,
+          label: 'arrival_station'.tr,
           icon: Icons.location_pin,
           iconColor: const Color(0xFF10B981),
           onMapPressed: () => _openStationOnMap(answer2, toStation),
@@ -179,7 +193,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildAnimatedStationCard({
+    required bool isDark,
     required TextEditingController controller,
+    required FocusNode focusNode,
     required String label,
     required IconData icon,
     required Color iconColor,
@@ -190,11 +206,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -221,31 +237,87 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     label,
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey[600],
+                      color: isDark ? Colors.grey[400] : Colors.grey[600],
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  DropdownMenu<Station>(
-                    controller: controller,
-                    width: MediaQuery.of(context).size.width * 0.5,
-                    menuHeight: 200,
-                    hintText: 'Select station',
-                    enableFilter: true,
-                    enableSearch: true,
-                    requestFocusOnTap: true,
-                    inputDecorationTheme: const InputDecorationTheme(
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    onSelected: (station) => onSelected(station),
-                    dropdownMenuEntries: [
-                      for (var station in metroStations)
-                        DropdownMenuEntry<Station>(
-                          value: station,
-                          label: station.name,
-                          leadingIcon: const Icon(Icons.train),
+                  RawAutocomplete<Station>(
+                    focusNode: focusNode,
+                    textEditingController: controller,
+                    displayStringForOption: (Station option) => option.name.tr,
+                    optionsBuilder: (TextEditingValue textEditingValue) {
+                      if (textEditingValue.text.isEmpty) {
+                        return metroStations;
+                      }
+                      return metroStations.where((Station option) {
+                        return option.name.tr
+                            .toLowerCase()
+                            .contains(textEditingValue.text.toLowerCase());
+                      });
+                    },
+                    onSelected: (Station selection) {
+                      controller.text = selection.name.tr;
+                      onSelected(selection);
+                    },
+                    fieldViewBuilder: (BuildContext context,
+                        TextEditingController fieldTextEditingController,
+                        FocusNode fieldFocusNode,
+                        VoidCallback onFieldSubmitted) {
+                      return TextField(
+                        controller: fieldTextEditingController,
+                        focusNode: fieldFocusNode,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
                         ),
-                    ],
+                        decoration: InputDecoration(
+                          hintText: 'select_station'.tr,
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                          isDense: true,
+                        ),
+                      );
+                    },
+                    optionsViewBuilder: (BuildContext context,
+                        AutocompleteOnSelected<Station> onSelectedAuto,
+                        Iterable<Station> options) {
+                      return Align(
+                        alignment: Alignment.topLeft,
+                        child: Material(
+                          elevation: 8.0,
+                          borderRadius: BorderRadius.circular(12),
+                          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxHeight: 200,
+                              maxWidth: MediaQuery.of(context).size.width * 0.5,
+                            ),
+                            child: ListView.builder(
+                              padding: EdgeInsets.zero,
+                              shrinkWrap: true,
+                              itemCount: options.length,
+                              itemBuilder: (BuildContext context, int index) {
+                                final Station option = options.elementAt(index);
+                                return InkWell(
+                                  onTap: () {
+                                    onSelectedAuto(option);
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                                    child: Text(
+                                      option.name.tr,
+                                      style: TextStyle(
+                                        color: isDark ? Colors.white : Colors.black87,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -260,15 +332,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  Widget _buildPassengerDetailsSection() {
+  Widget _buildPassengerDetailsSection(bool isDark) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -278,10 +350,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'PASSENGER DETAILS',
+            'passenger_details'.tr,
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey[600],
+              color: isDark ? Colors.grey[400] : Colors.grey[600],
               fontWeight: FontWeight.w600,
               letterSpacing: 0.5,
             ),
@@ -291,8 +363,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             children: [
               Expanded(
                 child: _buildDetailInputField(
+                  isDark: isDark,
                   controller: answer3,
-                  hintText: 'Age',
+                  hintText: 'passenger_age'.tr,
                   icon: Icons.person_outline,
                   iconColor: const Color(0xFF3B82F6),
                 ),
@@ -300,8 +373,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               const SizedBox(width: 12),
               Expanded(
                 child: _buildDetailInputField(
+                  isDark: isDark,
                   controller: answer4,
-                  hintText: 'Accessibility',
+                  hintText: 'special_needs'.tr,
                   icon: Icons.accessible_outlined,
                   iconColor: const Color(0xFF10B981),
                   isDropdown: true,
@@ -315,6 +389,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildDetailInputField({
+    required bool isDark,
     required TextEditingController controller,
     required String hintText,
     required IconData icon,
@@ -324,9 +399,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: isDark ? const Color(0xFF334155) : Colors.grey[50],
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(
+          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+        ),
       ),
       child: Row(
         children: [
@@ -338,19 +415,28 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     controller: controller,
                     width: MediaQuery.of(context).size.width * 0.3,
                     hintText: hintText,
+                    textStyle: TextStyle(
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
                     inputDecorationTheme: const InputDecorationTheme(
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.zero,
                     ),
-                    dropdownMenuEntries: const [
-                      DropdownMenuEntry(value: 'yes', label: 'Disabled'),
-                      DropdownMenuEntry(value: 'no', label: 'Not Disabled'),
+                    dropdownMenuEntries: [
+                      DropdownMenuEntry(value: 'yes', label: 'yes'.tr),
+                      DropdownMenuEntry(value: 'no', label: 'no'.tr),
                     ],
                   )
                 : TextField(
                     controller: controller,
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
                     decoration: InputDecoration(
                       hintText: hintText,
+                      hintStyle: TextStyle(
+                        color: isDark ? Colors.grey[400] : Colors.grey[500],
+                      ),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.only(bottom: 12),
                     ),
@@ -374,14 +460,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         elevation: 3,
         shadowColor: const Color(0xFF4F46E5).withOpacity(0.3),
       ),
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.directions, color: Colors.white, size: 24),
-          SizedBox(width: 12),
+          const Icon(Icons.directions, color: Colors.white, size: 24),
+          const SizedBox(width: 12),
           Text(
-            'FIND BEST ROUTE',
-            style: TextStyle(
+            'calculate_route'.tr,
+            style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: Colors.white,
@@ -393,15 +479,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  Widget _buildLocationServicesSection() {
+  Widget _buildLocationServicesSection(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'LOCATION SERVICES',
+          'location_services'.tr,
           style: TextStyle(
             fontSize: 12,
-            color: Colors.grey[600],
+            color: isDark ? Colors.grey[400] : Colors.grey[600],
             fontWeight: FontWeight.w600,
             letterSpacing: 0.5,
           ),
@@ -411,13 +497,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           children: [
             Expanded(
               child: _buildLocationServiceButton(
-                text: 'Nearest Station',
+                text: 'nearest_station_from'.tr,
                 icon: Icons.near_me,
                 color: const Color(0xFF10B981),
                 onPressed: () async {
                   nearestStationFromCurrent = await findNearestStationFromCurrent();
                   if (nearestStationFromCurrent != null) {
-                    answer1.text = nearestStationFromCurrent!.name;
+                    answer1.text = nearestStationFromCurrent!.name.tr;
                     fromStation = nearestStationFromCurrent;
                   }
                 },
@@ -426,7 +512,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             const SizedBox(width: 12),
             Expanded(
               child: _buildLocationServiceButton(
-                text: 'Enter Destination',
+                text: 'enter_destination'.tr,
                 icon: Icons.location_searching,
                 color: const Color(0xFFF59E0B),
                 onPressed: () {
@@ -461,12 +547,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         children: [
           Icon(icon, color: Colors.white, size: 20),
           const SizedBox(width: 8),
-          Text(
-            text,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.white,
-              fontWeight: FontWeight.w500,
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -474,18 +563,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  Widget _buildDestinationAddressSection() {
+  Widget _buildDestinationAddressSection(bool isDark) {
     return showLocationField.value
         ? Column(
             children: [
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
+                      color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, 5),
                     ),
@@ -495,10 +584,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'DESTINATION ADDRESS',
+                      'enter_destination'.tr,
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey[600],
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.5,
                       ),
@@ -507,9 +596,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.grey[50],
+                        color: isDark ? const Color(0xFF334155) : Colors.grey[50],
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[200]!),
+                        border: Border.all(
+                          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+                        ),
                       ),
                       child: Row(
                         children: [
@@ -518,10 +609,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           Expanded(
                             child: TextField(
                               controller: locationController,
-                              decoration: const InputDecoration(
-                                hintText: "Enter destination address",
+                              style: TextStyle(
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'enter_destination'.tr,
+                                hintStyle: TextStyle(
+                                  color: isDark ? Colors.grey[400] : Colors.grey[500],
+                                ),
                                 border: InputBorder.none,
-                                contentPadding: EdgeInsets.only(bottom: 12),
+                                contentPadding: const EdgeInsets.only(bottom: 12),
                               ),
                             ),
                           ),
@@ -533,37 +630,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       children: [
                         Expanded(
                           child: _buildLocationActionButton(
-                            text: 'Find Station',
+                            text: 'search_nearest'.tr,
                             icon: Icons.search,
                             color: const Color(0xFF3B82F6),
                             onPressed: () async {
                               if (locationController.text.isEmpty) {
-                                _showErrorSnackbar('Please enter a location first');
+                                _showErrorSnackbar('please_fill_fields'.tr);
                                 return;
                               }
                               nearestStationFromDestination =
                                   await findNearestToEnteredAddress(locationController);
                               if (nearestStationFromDestination != null) {
-                                answer2.text = nearestStationFromDestination!.name;
+                                answer2.text = nearestStationFromDestination!.name.tr;
                                 toStation = nearestStationFromDestination;
-                              }
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildLocationActionButton(
-                            text: 'Show Map',
-                            icon: Icons.map,
-                            color: const Color(0xFF8B5CF6),
-                            onPressed: () {
-                              if (locationController.text.isNotEmpty) {
-                                final url = Uri.parse(
-                                  'geo:0,0?q=${locationController.text}+Cairo+Egypt',
-                                );
-                                launchUrl(url);
-                              } else {
-                                _showErrorSnackbar('Please enter a location first');
                               }
                             },
                           ),
@@ -616,38 +695,36 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   void _openStationOnMap(TextEditingController controller, Station? station) {
     if (station != null) {
       launchUrl(Uri.parse(
-        'geo:0,0?q=${controller.text}+metro+station+egypt',
+        'geo:0,0?q=${station.name}+metro+station+egypt',
       ));
     } else {
-      _showErrorSnackbar('Please select a station first');
+      _showErrorSnackbar('please_select_station'.tr);
     }
   }
 
   void _handleShowDetails() {
-    if (answer1.text.isEmpty ||
-        answer2.text.isEmpty ||
+    if (fromStation == null ||
+        toStation == null ||
         answer3.text.isEmpty ||
         answer4.text.isEmpty) {
-      _showErrorSnackbar('Please fill all required fields');
+      _showErrorSnackbar('please_fill_fields'.tr);
       return;
     }
 
-    Get.to(
-      const DetailsPage(),
+    Get.toNamed(
+      AppRoutes.details,
       arguments: {
-        'from': answer1.text,
-        'to': answer2.text,
+        'from': fromStation!.name,
+        'to': toStation!.name,
         'age': answer3.text,
         'disabled': answer4.text,
       },
-      transition: Transition.rightToLeftWithFade,
-      duration: const Duration(milliseconds: 500),
     );
   }
 
   void _showErrorSnackbar(String message) {
     Get.snackbar(
-      'Error',
+      'error'.tr,
       message,
       snackPosition: SnackPosition.BOTTOM,
       backgroundColor: const Color(0xFFEF4444),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'home_page.dart';
+import 'app_routes.dart';
 
 class StartPage extends StatelessWidget {
   const StartPage({super.key});
@@ -18,7 +18,7 @@ class StartPage extends StatelessWidget {
                 BlendMode.darken,
               ),
               child: Image.asset(
-                'assets/images/home_page.jpg', // Your background image
+                'assets/images/onboarding.jpg', // Your background image
                 fit: BoxFit.cover,
               ),
             ),
@@ -53,10 +53,10 @@ class StartPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 30),
                       // App Title
-                      const Text(
-                        'Metro Tracker',
-                        style: TextStyle(
-                          fontSize: 36,
+                      Text(
+                        'app_title'.tr,
+                        style: const TextStyle(
+                          fontSize: 34,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                           letterSpacing: 1.2,
@@ -65,7 +65,7 @@ class StartPage extends StatelessWidget {
                       const SizedBox(height: 10),
                       // App Description
                       Text(
-                        'Find your fastest route through the city',
+                        'start_subtitle'.tr,
                         style: TextStyle(
                           fontSize: 16,
                           color: Colors.white.withOpacity(0.9),
@@ -81,11 +81,7 @@ class StartPage extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 40),
                     child: ElevatedButton(
                       onPressed: () {
-                        Get.to(
-                          const HomePage(),
-                          transition: Transition.rightToLeft,
-                          duration: const Duration(milliseconds: 300),
-                        );
+                        Get.offNamed(AppRoutes.main);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orangeAccent,
@@ -100,12 +96,12 @@ class StartPage extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text('Get Started'),
-                          SizedBox(width: 10),
-                          Icon(Icons.arrow_forward_rounded, size: 20),
+                          Text('start_button'.tr),
+                          const SizedBox(width: 10),
+                          const Icon(Icons.arrow_forward_rounded, size: 20),
                         ],
                       ),
                     ),

@@ -3,30 +3,74 @@ import 'package:get/get.dart';
 import 'station.dart';
 import 'stations_data.dart';
 import 'logic.dart';
+import 'rides_controller.dart';
 
-class DetailsPage extends StatelessWidget {
+class DetailsPage extends StatefulWidget {
   const DetailsPage({super.key});
 
   @override
+  State<DetailsPage> createState() => _DetailsPageState();
+}
+
+class _DetailsPageState extends State<DetailsPage> {
+  List<String>? _route;
+  Map<String, dynamic> _details = {};
+  Map<String, List<String>> _stationLinesMap = {};
+  Map<String, dynamic> _args = {};
+  bool _initialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _initialized = true;
+      _args = Get.arguments ?? {};
+      final fromStationName = _args['from'] ?? '';
+      final toStationName = _args['to'] ?? '';
+      final ageStr = _args['age']?.toString() ?? '0';
+      final disabledStr = _args['disabled'] ?? 'no';
+
+      _stationLinesMap = getStationLinesMap(metroLines);
+      final graph = buildGraph(metroLines);
+      _route = findShortestPath(graph, fromStationName, toStationName);
+      _details = getDetails(
+        _route,
+        metroLines,
+        fromStationName,
+        toStationName,
+        int.tryParse(ageStr) ?? 0,
+        disabledStr,
+      );
+
+      // Automatically save ride to RidesController
+      if (_route != null && fromStationName.isNotEmpty && toStationName.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (Get.isRegistered<RidesController>()) {
+            Get.find<RidesController>().addRide(
+              from: fromStationName,
+              to: toStationName,
+              time: _details["Time"] ?? "--",
+              price: _details["Ticket Price"] ?? "--",
+              stationsCount: _details["Stations Count"] ?? "0",
+              line: _details["Lines"] ?? "Unknown",
+              transferStation: _details["Transfer Station"] ?? "None",
+            );
+          }
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final args = Get.arguments;
-    final graph = buildGraph(metroLines);
-    final route = findShortestPath(graph, args['from'], args['to']);
-    final details = getDetails(
-      route,
-      metroLines,
-      args['from'],
-      args['to'],
-      int.tryParse(args['age'].toString()) ?? 0,
-      args['disabled'],
-    );
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFD),
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFD),
       appBar: AppBar(
-        title: const Text(
-          'Trip Details',
-          style: TextStyle(
+        title: Text(
+          'trip_details'.tr,
+          style: const TextStyle(
             fontWeight: FontWeight.w700,
             fontSize: 22,
             color: Colors.white,
@@ -43,16 +87,16 @@ class DetailsPage extends StatelessWidget {
           ),
         ),
       ),
-      body: route == null 
-        ? const Center(
+      body: _route == null 
+        ? Center(
             child: Text(
-              "No Route Found!",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
+              'no_route_found'.tr,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
             ),
           )
         : Column(
         children: [
-          _buildHeaderSection(args, details),
+          _buildHeaderSection(_args, _details, isDark),
           Expanded(
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
@@ -60,9 +104,9 @@ class DetailsPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildTripInformationSection(details),
+                  _buildTripInformationSection(_details, isDark),
                   const SizedBox(height: 24),
-                  _buildRouteStationsSection(route, metroLines),
+                  _buildRouteStationsSection(_route!, metroLines, isDark),
                 ],
               ),
             ),
@@ -72,7 +116,7 @@ class DetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildHeaderSection(Map<String, dynamic> args, Map<String, dynamic> details) {
+  Widget _buildHeaderSection(Map<String, dynamic> args, Map<String, dynamic> details, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -96,7 +140,7 @@ class DetailsPage extends StatelessWidget {
         children: [
           _buildFromToRow(args),
           const SizedBox(height: 24),
-          _buildSummaryCards(details),
+          _buildSummaryCards(details, isDark),
         ],
       ),
     );
@@ -117,7 +161,7 @@ class DetailsPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "DEPARTURE",
+                  'departure'.tr,
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.white.withOpacity(0.8),
@@ -127,7 +171,7 @@ class DetailsPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  args['from'],
+                  (args['from'] ?? '').toString().tr,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -155,7 +199,7 @@ class DetailsPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  "DESTINATION",
+                  'destination'.tr,
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.white.withOpacity(0.8),
@@ -165,7 +209,7 @@ class DetailsPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  args['to'],
+                  (args['to'] ?? '').toString().tr,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -181,30 +225,33 @@ class DetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSummaryCards(Map<String, dynamic> details) {
+  Widget _buildSummaryCards(Map<String, dynamic> details, bool isDark) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         _buildSummaryCard(
           icon: Icons.access_time_rounded,
           value: details["Time"] ?? "--",
-          label: "Duration",
+          label: 'duration'.tr,
           color: Colors.blue[100]!,
           iconColor: Colors.blue[800]!,
+          isDark: isDark,
         ),
         _buildSummaryCard(
           icon: Icons.directions_subway_rounded,
           value: details["Stations Count"] ?? "--",
-          label: "Stations",
+          label: 'stations'.tr,
           color: Colors.purple[100]!,
           iconColor: Colors.purple[800]!,
+          isDark: isDark,
         ),
         _buildSummaryCard(
           icon: Icons.attach_money_rounded,
           value: details["Ticket Price"] ?? "--",
-          label: "Price",
+          label: 'price'.tr,
           color: Colors.green[100]!,
           iconColor: Colors.green[800]!,
+          isDark: isDark,
         ),
       ],
     );
@@ -216,16 +263,17 @@ class DetailsPage extends StatelessWidget {
     required String label,
     required Color color,
     required Color iconColor,
+    required bool isDark,
   }) {
     return Container(
       width: 100,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -244,10 +292,10 @@ class DetailsPage extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: Colors.black87,
+              color: isDark ? Colors.white : Colors.black87,
             ),
             textAlign: TextAlign.center
           ),
@@ -256,7 +304,7 @@ class DetailsPage extends StatelessWidget {
             label,
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey[600],
+              color: isDark ? Colors.grey[400] : Colors.grey[600],
               fontWeight: FontWeight.w500,
             ),
             textAlign: TextAlign.center
@@ -266,127 +314,76 @@ class DetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildTripInformationSection(Map<String, dynamic> details) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "TRIP INFORMATION",
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 12),
-        
-        _buildInfoCard(
-          icon: Icons.directions_rounded,
-          title: "Direction",
-          value: details["Direction"]?.replaceAll(" then ", "\n") ?? "Unknown",
-          color: const Color(0xFF4F46E5),
-        ),
-        const SizedBox(height: 12),
-        
-        _buildInfoCard(
-          icon: Icons.swap_horiz_rounded,
-          title: "Transfer Station",
-          value: details["Transfer Station"] ?? "None",
-          color: const Color(0xFFF59E0B),
-        ),
-        const SizedBox(height: 12),
-        
-        _buildInfoCard(
-          icon: Icons.train_rounded,
-          title: "Line",
-          value: details["Lines"]?.replaceAll(" -> ", " ->\n") ?? "Unknown",
-          color: const Color(0xFF10B981),
-        ),
-        const SizedBox(height: 12),
-        
-        _buildInfoCard(
-          icon: Icons.palette_rounded,
-          title: "Line Color",
-          value: details["Color"] ?? "Unknown",
-          color: getColorFromName(details["Color"] ?? ""),
-          showColorIndicator: true,
-        ),
-      ],
-    );
+  String _generateTripDescription(Map<String, dynamic> details, Map<String, dynamic> args) {
+    String lang = Get.locale?.languageCode ?? 'en';
+    final lines = (details["Lines"] ?? "").toString().split(" -> ");
+    final dirs = (details["Direction"] ?? "").toString().split(" then ");
+    final transfersStr = details["Transfer Station"]?.toString() ?? "none";
+    final List<String> transfers = (transfersStr == "None" || transfersStr.toLowerCase() == "none") 
+        ? <String>[] 
+        : transfersStr.split(", ");
+
+    if (lines.isEmpty || lines[0] == "Unknown" || lines[0].isEmpty) {
+      return 'no_route_found'.tr;
+    }
+
+    if (lang == 'ar') {
+      // Egyptian Arabic
+      String desc = "هتركب ${lines[0].tr} اتجاه ${dirs[0].split(' / ').map((e) => e.tr).join(' / ')}";
+      
+      for (int i = 0; i < transfers.length; i++) {
+        if (i + 1 < lines.length && i + 1 < dirs.length) {
+          desc += " وهتحول من محطة ${transfers[i].tr} لـ ${lines[i + 1].tr} اتجاه ${dirs[i + 1].split(' / ').map((e) => e.tr).join(' / ')}";
+        }
+      }
+      return desc;
+    } else {
+      // English
+      String desc = "You will take ${lines[0].tr} towards ${dirs[0].split(' / ').map((e) => e.tr).join(' / ')}";
+      
+      for (int i = 0; i < transfers.length; i++) {
+        if (i + 1 < lines.length && i + 1 < dirs.length) {
+          desc += " and transfer at ${transfers[i].tr} to ${lines[i + 1].tr} towards ${dirs[i + 1].split(' / ').map((e) => e.tr).join(' / ')}";
+        }
+      }
+      return desc;
+    }
   }
 
-  Widget _buildInfoCard({
-    required IconData icon,
-    required String title,
-    required String value,
-    required Color color,
-    bool showColorIndicator = false,
-  }) {
+  Widget _buildTripInformationSection(Map<String, dynamic> details, bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.05),
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+          Text(
+            'your_trip_details'.tr,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: isDark ? Colors.white : Colors.black87,
+              letterSpacing: 0.5,
             ),
-            child: Icon(icon, color: color),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    if (showColorIndicator)
-                      Container(
-                        width: 16,
-                        height: 16,
-                        margin: const EdgeInsets.only(right: 8),
-                        decoration: BoxDecoration(
-                          color: color,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.grey[300]!),
-                        ),
-                      ),
-                    Expanded(
-                      child: Text(
-                        value,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+          const SizedBox(height: 12),
+          Text(
+            _generateTripDescription(details, _args),
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.6,
+              color: isDark ? Colors.grey[300] : Colors.grey[800],
             ),
           ),
         ],
@@ -394,16 +391,18 @@ class DetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildRouteStationsSection(List<String> route, Map<String, List<Station>> metroLines) {
+
+
+  Widget _buildRouteStationsSection(List<String> route, Map<String, List<Station>> metroLines, bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          "ROUTE STATIONS",
+        Text(
+          'route_stations'.tr,
           style: TextStyle(
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Colors.grey,
+            color: isDark ? Colors.grey[400] : Colors.grey[600],
             letterSpacing: 0.5,
           ),
         ),
@@ -411,11 +410,11 @@ class DetailsPage extends StatelessWidget {
         
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.05),
+                color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, 5),
               ),
@@ -427,25 +426,27 @@ class DetailsPage extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   border: Border(
-                    bottom: BorderSide(color: Colors.grey[200]!),
+                    bottom: BorderSide(
+                      color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+                    ),
                   ),
                 ),
                 child: Row(
-                  children: const [
-                    Icon(Icons.list_rounded, color: Colors.blue, size: 20),
-                    SizedBox(width: 8),
+                  children: [
+                    const Icon(Icons.list_rounded, color: Colors.blue, size: 20),
+                    const SizedBox(width: 8),
                     Text(
-                      "Stations List",
+                      'stations_list'.tr,
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: Colors.black87,
+                        color: isDark ? Colors.white : Colors.black87,
                       ),
                     ),
                   ],
                 ),
               ),
-              ..._buildRouteList(route, metroLines),
+              ..._buildRouteList(route, metroLines, isDark),
             ],
           ),
         ),
@@ -453,14 +454,12 @@ class DetailsPage extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildRouteList(List<String> route, Map<String, List<Station>> metroLines) {
+  List<Widget> _buildRouteList(List<String> route, Map<String, List<Station>> metroLines, bool isDark) {
     return List.generate(route.length, (index) {
       final station = route[index];
-      // يجلب كل الخطوط التي تتقاطع فيها المحطة
-      final linesForStation = metroLines.entries
-          .where((entry) => entry.value.any((s) => s.name == station))
-          .map((e) => e.key)
-          .join(' / ');
+      final linesList = _stationLinesMap[station] ?? [];
+      final linesForStation = linesList.join(' / ');
+      final isTransfer = index != 0 && index != route.length - 1 && linesList.length > 1;
 
       return Container(
         padding: const EdgeInsets.all(16),
@@ -468,7 +467,9 @@ class DetailsPage extends StatelessWidget {
           border: Border(
             bottom: index == route.length - 1
                 ? BorderSide.none
-                : BorderSide(color: Colors.grey[100]!),
+                : BorderSide(
+                    color: isDark ? Colors.grey[800]! : Colors.grey[100]!,
+                  ),
           ),
         ),
         child: Row(
@@ -499,11 +500,11 @@ class DetailsPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    station,
-                    style: const TextStyle(
+                    station.tr,
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                      color: isDark ? Colors.white : Colors.black87,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -511,25 +512,25 @@ class DetailsPage extends StatelessWidget {
                     linesForStation,
                     style: TextStyle(
                       fontSize: 13,
-                      color: Colors.grey[600],
+                      color: isDark ? Colors.grey[400] : Colors.grey[600],
                     ),
                   ),
                 ],
               ),
             ),
-            if (index != 0 && index != route.length - 1 && _isTransferStation(station, route, metroLines))
+            if (isTransfer)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.orange[50],
+                  color: Colors.orange[50]!.withOpacity(isDark ? 0.2 : 1.0),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  "TRANSFER",
+                  'transfer'.tr,
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: Colors.orange[800],
+                    color: isDark ? Colors.orange[300] : Colors.orange[800],
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -544,10 +545,6 @@ class DetailsPage extends StatelessWidget {
     if (index == 0) return Colors.green;
     if (index == total - 1) return Colors.red;
     return Colors.blue;
-  }
-
-  bool _isTransferStation(String station, List<String> route, Map<String, List<Station>> metroLines) {
-    return metroLines.values.where((line) => line.any((s) => s.name == station)).length > 1;
   }
 
   Color getColorFromName(String name) {
