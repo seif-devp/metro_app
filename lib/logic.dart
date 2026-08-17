@@ -1,4 +1,3 @@
-import 'dart:collection';
 import 'station.dart';
 
 Map<String, List<Station>>? _cachedGraph;
@@ -170,35 +169,82 @@ Map<String, List<Station>> buildGraph(Map<String, List<Station>> lines) {
   return graph;
 }
 
+class PathNode {
+  final String station;
+  final String? currentLine;
+  final int cost;
+  final List<String> path;
+
+  PathNode(this.station, this.currentLine, this.cost, this.path);
+}
+
 List<String>? findShortestPath(
   Map<String, List<Station>> graph,
+  Map<String, List<Station>> metroLines,
   String start,
   String end,
 ) {
   if (!graph.containsKey(start) || !graph.containsKey(end)) return null;
 
-  final queue = Queue<List<String>>();
-  final visited = <String>{};
+  final stationLinesMap = getStationLinesMap(metroLines);
+  
+  List<String> getCommonLines(String s1, String s2) {
+    List<String> s1Lines = stationLinesMap[s1] ?? [];
+    List<String> s2Lines = stationLinesMap[s2] ?? [];
+    return s1Lines.where((l) => s2Lines.contains(l)).toList();
+  }
 
-  queue.add([start]);
-  visited.add(start);
+  final queue = <PathNode>[];
+  final visited = <String, int>{}; // stateKey -> minCost
+
+  queue.add(PathNode(start, null, 0, [start]));
+  visited["${start}_null"] = 0;
+
+  PathNode? bestPath;
 
   while (queue.isNotEmpty) {
-    final path = queue.removeFirst();
-    final current = path.last;
+    queue.sort((a, b) => a.cost.compareTo(b.cost));
+    final current = queue.removeAt(0);
 
-    if (current == end) {
-      return path;
+    if (current.station == end) {
+      if (bestPath == null || current.cost < bestPath.cost) {
+        bestPath = current;
+      }
+      continue;
     }
 
-    for (final neighbor in graph[current]!) {
-      final neighborName = neighbor.name;
+    if (bestPath != null && current.cost >= bestPath.cost) {
+      continue;
+    }
 
-      if (!visited.contains(neighborName)) {
-        visited.add(neighborName);
-        queue.add([...path, neighborName]);
+    for (final neighbor in graph[current.station]!) {
+      final neighborName = neighbor.name;
+      
+      final commonLines = getCommonLines(current.station, neighborName);
+      String? nextLine = current.currentLine;
+      int stepCost = 1;
+
+      if (current.currentLine == null) {
+        if (commonLines.isNotEmpty) {
+          nextLine = commonLines.first;
+        }
+      } else if (!commonLines.contains(current.currentLine)) {
+        // Transfer required!
+        stepCost = 100;
+        if (commonLines.isNotEmpty) {
+          nextLine = commonLines.first;
+        }
+      }
+
+      final nextCost = current.cost + stepCost;
+      String stateKey = "${neighborName}_$nextLine";
+
+      if (!visited.containsKey(stateKey) || nextCost < visited[stateKey]!) {
+        visited[stateKey] = nextCost;
+        queue.add(PathNode(neighborName, nextLine, nextCost, [...current.path, neighborName]));
       }
     }
   }
-  return null;
+
+  return bestPath?.path;
 }

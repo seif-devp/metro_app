@@ -32,7 +32,7 @@ class _DetailsPageState extends State<DetailsPage> {
 
       _stationLinesMap = getStationLinesMap(metroLines);
       final graph = buildGraph(metroLines);
-      _route = findShortestPath(graph, fromStationName, toStationName);
+      _route = findShortestPath(graph, metroLines, fromStationName, toStationName);
       _details = getDetails(
         _route,
         metroLines,
